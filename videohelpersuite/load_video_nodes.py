@@ -106,6 +106,14 @@ def cv_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
     else:
         target_frame_time = 1/force_rate
 
+    # Tolerance for the frame-time comparisons below. Frame times are
+    # accumulated by repeated addition/subtraction, and values like 1/24
+    # are not exact in binary floating point, so the accumulator drifts.
+    # Without a tolerance, a source frame that lands exactly on a target
+    # slot (e.g. every 3rd frame when converting 24 -> 16 fps) can end up
+    # epsilon below the threshold and be skipped for the following frame.
+    time_epsilon = target_frame_time * 1e-6
+
     if total_frames > 0:
         if force_rate != 0:
             yieldable_frames = int(total_frames / fps * force_rate)
@@ -121,13 +129,13 @@ def cv_frame_generator(video, force_rate, frame_load_cap, skip_first_frames,
     pbar = ProgressBar(yieldable_frames)
     time_offset=target_frame_time
     while video_cap.isOpened():
-        if time_offset < target_frame_time:
+        if time_offset < target_frame_time - time_epsilon:
             is_returned = video_cap.grab()
             # if didn't return frame, video has ended
             if not is_returned:
                 break
             time_offset += base_frame_time
-        if time_offset < target_frame_time:
+        if time_offset < target_frame_time - time_epsilon:
             continue
         time_offset -= target_frame_time
         # if not at start_index, skip doing anything with frame
